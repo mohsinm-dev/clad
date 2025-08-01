@@ -4,10 +4,12 @@ on:
     branches:
       - master
       - coverity_scan
+      - debug-ubuntu-test  # Add our test branch
   pull_request:
     branches:
       - master
       - coverity_scan
+      - debug-ubuntu-test  # Allow PRs to our test branch
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}

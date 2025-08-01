@@ -236,6 +236,16 @@ DEFINE_CLONE_EXPR(CXXNullPtrLiteralExpr, (Node->getType(), Node->getSourceRange(
 CLAD_COMPAT_CLANG17_CXXThisExpr_ExtraParam Node->getSourceRange().getBegin(), Node->getType(), Node->isImplicit())) 
 
 DEFINE_CLONE_EXPR(CXXThrowExpr, (Clone(Node->getSubExpr()), Node->getType(), Node->getThrowLoc(), Node->isThrownVariableInScope()))
+
+Stmt* StmtClone::VisitSourceLocExpr(SourceLocExpr* Node) {
+  // SourceLocExpr nodes don't have subexpressions to clone and can be safely 
+  // recreated with their original attributes
+  SourceLocExpr* result = new (Ctx) SourceLocExpr(
+      Ctx, Node->getIdentKind(), CloneType(Node->getType()),
+      Node->getBeginLoc(), Node->getEndLoc(), Node->getParentContext());
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 #if CLANG_VERSION_MAJOR < 16
 DEFINE_CLONE_EXPR(
     SubstNonTypeTemplateParmExpr,
@@ -575,6 +585,8 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 }
 
 void ReferencesUpdater::updateType(QualType QT) {
+  if (QT.isNull())
+    return;
   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
 }

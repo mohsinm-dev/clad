@@ -106,6 +106,7 @@ namespace utils {
     DECLARE_CLONE_FN(CallExpr)
     DECLARE_CLONE_FN(CUDAKernelCallExpr)
     DECLARE_CLONE_FN(ShuffleVectorExpr)
+    DECLARE_CLONE_FN(SourceLocExpr)
     DECLARE_CLONE_FN(ExprWithCleanups)
     DECLARE_CLONE_FN(CXXOperatorCallExpr)
     DECLARE_CLONE_FN(CXXMemberCallExpr)
