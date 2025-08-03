@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Focus on specific Ubuntu configurations that are likely failing
+          # Original debug configurations (passing)
           - name: ubu22-gcc10-runtime11-debug
             os: ubuntu-22.04
             compiler: gcc-10
@@ -32,10 +32,68 @@ jobs:
             clang-runtime: '11'
             debug_mode: true
             
+          # Higher runtime versions (likely failing)
+          - name: ubu22-gcc10-runtime19-debug
+            os: ubuntu-22.04
+            compiler: gcc-10
+            clang-runtime: '19'
+            debug_mode: true
+            
+          - name: ubu22-gcc11-runtime19-debug
+            os: ubuntu-22.04
+            compiler: gcc-11
+            clang-runtime: '19'
+            debug_mode: true
+            
+          # GCC 12 combinations (likely failing)
+          - name: ubu22-gcc12-runtime11-debug
+            os: ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '11'
+            debug_mode: true
+            
+          - name: ubu22-gcc12-runtime12-debug
+            os: ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '12'
+            debug_mode: true
+            
+          - name: ubu22-gcc12-runtime13-debug
+            os: ubuntu-22.04
+            compiler: gcc-12
+            clang-runtime: '13'
+            debug_mode: true
+            
+          # Older Clang versions (potentially failing)
+          - name: ubu22-clang12-runtime11-debug
+            os: ubuntu-22.04
+            compiler: clang-12
+            clang-runtime: '11'
+            debug_mode: true
+            
+          - name: ubu22-clang13-runtime11-debug
+            os: ubuntu-22.04
+            compiler: clang-13
+            clang-runtime: '11'
+            debug_mode: true
+            
+          - name: ubu22-clang14-runtime11-debug
+            os: ubuntu-22.04
+            compiler: clang-14
+            clang-runtime: '11'
+            debug_mode: true
+            
+          # Newer combinations that may have different behavior
           - name: ubu22-clang15-runtime18-debug
             os: ubuntu-22.04
             compiler: clang-15
             clang-runtime: '18'
+            debug_mode: true
+            
+          - name: ubu22-clang16-runtime11-debug
+            os: ubuntu-22.04
+            compiler: 'clang-16'
+            clang-runtime: '11'
             debug_mode: true
 
     steps:
@@ -231,10 +289,49 @@ jobs:
             fi
           done
           
-          # Run specific failing test in isolation
-          echo "=== Running Ubuntu-specific test in isolation ==="
+          # Run specific failing tests in isolation
+          echo "=== Running Ubuntu-specific tests in isolation ==="
           cd test
-          python3 -m lit -v Regressions/ubuntu-debug-1442.cpp --debug 2>&1 | tee -a ../debug_output.log
+          
+          echo "--- Running ubuntu-assert-patterns test with detailed error capture ---"
+          timeout 60 python3 -m lit -v Regressions/ubuntu-assert-patterns.cpp --debug --verbose 2>&1 | tee -a ../debug_output.log || {
+            echo "ubuntu-assert-patterns test failed - capturing detailed logs"
+            echo "=== Raw clang command output ===" >> ../debug_output.log
+            /usr/lib/llvm-11/bin/clang++ -DCLAD_NO_NUM_DIFF -std=c++14 \
+              -Xclang -add-plugin -Xclang clad \
+              -Xclang -plugin-arg-clad -Xclang -fdump-derived-fn \
+              -Xclang -load -Xclang /home/runner/work/clad/clad/obj/lib/clad.so \
+              Regressions/ubuntu-assert-patterns.cpp \
+              -I../../include -fsyntax-only -Xclang -verify \
+              -v 2>&1 | tee -a ../debug_output.log || true
+          }
+          
+          echo "--- Running ubuntu-newer-runtime-debug test with detailed error capture ---" 
+          timeout 60 python3 -m lit -v Regressions/ubuntu-newer-runtime-debug.cpp --debug --verbose 2>&1 | tee -a ../debug_output.log || {
+            echo "ubuntu-newer-runtime-debug test failed - capturing detailed logs"
+            echo "=== Raw clang command output ===" >> ../debug_output.log
+            /usr/lib/llvm-11/bin/clang++ -DCLAD_NO_NUM_DIFF -std=c++14 \
+              -Xclang -add-plugin -Xclang clad \
+              -Xclang -plugin-arg-clad -Xclang -fdump-derived-fn \
+              -Xclang -load -Xclang /home/runner/work/clad/clad/obj/lib/clad.so \
+              Regressions/ubuntu-newer-runtime-debug.cpp \
+              -I../../include -fsyntax-only -Xclang -verify \
+              -v 2>&1 | tee -a ../debug_output.log || true
+          }
+          
+          echo "--- Running original issue-1442 test with detailed error capture ---"
+          timeout 60 python3 -m lit -v Regressions/issue-1442.cpp --debug --verbose 2>&1 | tee -a ../debug_output.log || {
+            echo "issue-1442 test failed - capturing detailed logs"
+            echo "=== Raw clang command output ===" >> ../debug_output.log
+            /usr/lib/llvm-11/bin/clang++ -DCLAD_NO_NUM_DIFF -std=c++14 \
+              -Xclang -add-plugin -Xclang clad \
+              -Xclang -plugin-arg-clad -Xclang -fdump-derived-fn \
+              -Xclang -load -Xclang /home/runner/work/clad/clad/obj/lib/clad.so \
+              Regressions/issue-1442.cpp \
+              -I../../include -fsyntax-only -Xclang -verify \
+              -v 2>&1 | tee -a ../debug_output.log || true
+          }
+          
           cd ..
         else
           echo "=== TEST PASSED - Ubuntu issue may be resolved ==="
