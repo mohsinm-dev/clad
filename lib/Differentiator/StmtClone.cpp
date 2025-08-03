@@ -86,11 +86,27 @@ Stmt* StmtClone::VisitDeclRefExpr(DeclRefExpr *Node) {
 DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
                     Node->getLocation()))
-DEFINE_CLONE_EXPR_CO(PredefinedExpr,
-                     (Ctx, Node->getLocation(), CloneType(Node->getType()),
-                      Node->getIdentKind()
-                          CLAD_COMPAT_CLANG17_IsTransparent(Node),
-                      Node->getFunctionName()))
+Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
+  // Add null check for getFunctionName() to prevent crashes on Ubuntu
+  // where assert macros may generate PredefinedExpr with null function names
+  StringLiteral* functionName = Node->getFunctionName();
+  if (!functionName) {
+    // Create a safe fallback StringLiteral with empty string
+    // This prevents crashes while preserving the PredefinedExpr structure
+    std::string emptyStr = "";
+    functionName = StringLiteral::Create(
+        Ctx, emptyStr, StringLiteralKind::Ordinary, /*Pascal=*/false,
+        Ctx.CharTy, Node->getLocation());
+  }
+  
+  PredefinedExpr* result = PredefinedExpr::Create(
+      Ctx, Node->getLocation(), CloneType(Node->getType()),
+      Node->getIdentKind()
+          CLAD_COMPAT_CLANG17_IsTransparent(Node),
+      functionName);
+  clad_compat::ExprSetDeps(result, Node);
+  return result;
+}
 DEFINE_CLONE_EXPR(CharacterLiteral,
                   (Node->getValue(), Node->getKind(),
                    CloneType(Node->getType()), Node->getLocation()))
