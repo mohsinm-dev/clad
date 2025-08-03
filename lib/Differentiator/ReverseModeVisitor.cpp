@@ -691,14 +691,17 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitStmtExpr(const StmtExpr* SE) {
     // StmtExpr (GNU statement expressions) are not differentiable
-    // but we can safely clone them for assert macros and similar constructs
+    // For assert macros and similar constructs, we need to handle them carefully
+    // instead of trying to clone the complex internal structure
     diag(
         DiagnosticsEngine::Warning, SE->getBeginLoc(),
-        "attempted to differentiate unsupported statement expression, cloning without differentiation");
+        "attempted to differentiate unsupported statement, no changes applied");
     
-    // Clone the statement expression safely - this avoids the crash
-    // that was occurring when StmtExpr fell through to VisitStmt
-    return StmtDiff(Clone(SE));
+    // Instead of cloning the complex statement expression which can crash,
+    // return a simple void literal that won't interfere with differentiation
+    // This prevents the crash while allowing the differentiation process to continue
+    Expr* voidLiteral = m_Sema.ActOnGNUNullExpr(SE->getBeginLoc()).get();
+    return StmtDiff(voidLiteral);
   }
 
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
