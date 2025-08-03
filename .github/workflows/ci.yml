@@ -4,6 +4,7 @@ on:
     branches:
       - master
       - coverity_scan
+      - ubuntu-debug-1442
   pull_request:
     branches:
       - master
