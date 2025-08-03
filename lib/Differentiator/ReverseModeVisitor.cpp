@@ -690,6 +690,9 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitPredefinedExpr(const PredefinedExpr* PE) {
+    // DEBUG: Print to stderr to verify this method is actually being called
+    llvm::errs() << "[DEBUG] VisitPredefinedExpr called for: " << PE->getIdentKindName() << "\n";
+    
     // PredefinedExpr (__func__, __FUNCTION__, __PRETTY_FUNCTION__) are not differentiable
     // but are commonly found in assert macros. Handle them safely without crashing.
     diag(

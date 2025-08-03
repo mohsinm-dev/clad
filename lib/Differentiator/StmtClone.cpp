@@ -87,9 +87,21 @@ DEFINE_CREATE_EXPR(IntegerLiteral,
                    (Ctx, Node->getValue(), CloneType(Node->getType()),
                     Node->getLocation()))
 Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
+  // DEBUG: Print to stderr to verify this method is actually being called
+  llvm::errs() << "[DEBUG] StmtClone::VisitPredefinedExpr called for: " 
+               << (Node ? Node->getIdentKindName() : "NULL_NODE") << "\n";
+  
+  // Add null check for Node itself first
+  if (!Node) {
+    llvm::errs() << "[ERROR] VisitPredefinedExpr called with null Node!\n";
+    return nullptr;
+  }
+  
   // Add null check for getFunctionName() to prevent crashes on Ubuntu
   // where assert macros may generate PredefinedExpr with null function names
   StringLiteral* functionName = Node->getFunctionName();
+  llvm::errs() << "[DEBUG] getFunctionName() returned: " << (functionName ? "valid" : "NULL") << "\n";
+  
   if (!functionName) {
     // Create a safe fallback StringLiteral with empty string
     // This prevents crashes while preserving the PredefinedExpr structure
