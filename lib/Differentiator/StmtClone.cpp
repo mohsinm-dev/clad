@@ -94,9 +94,11 @@ Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
     // Create a safe fallback StringLiteral with empty string
     // This prevents crashes while preserving the PredefinedExpr structure
     std::string emptyStr = "";
+    SourceLocation loc = Node->getLocation();
+    llvm::SmallVector<SourceLocation, 1> locs{loc};
     functionName = StringLiteral::Create(
-        Ctx, emptyStr, StringLiteralKind::Ordinary, /*Pascal=*/false,
-        Ctx.CharTy, Node->getLocation());
+        Ctx, emptyStr, clad_compat::StringLiteralKind_Ordinary, /*Pascal=*/false,
+        Ctx.CharTy, &locs[0], locs.size());
   }
   
   PredefinedExpr* result = PredefinedExpr::Create(
