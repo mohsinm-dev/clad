@@ -389,6 +389,7 @@ namespace clad {
     StmtDiff VisitIntegerLiteral(const clang::IntegerLiteral* IL);
     StmtDiff VisitMemberExpr(const clang::MemberExpr* ME);
     StmtDiff VisitParenExpr(const clang::ParenExpr* PE);
+    StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* PE);
     virtual StmtDiff VisitReturnStmt(const clang::ReturnStmt* RS);
     StmtDiff VisitStmt(const clang::Stmt* S);
     StmtDiff VisitStmtExpr(const clang::StmtExpr* SE);

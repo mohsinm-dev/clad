@@ -689,6 +689,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff ReverseModeVisitor::VisitPredefinedExpr(const PredefinedExpr* PE) {
+    // PredefinedExpr (__func__, __FUNCTION__, __PRETTY_FUNCTION__) are not differentiable
+    // but are commonly found in assert macros. Handle them safely without crashing.
+    diag(
+        DiagnosticsEngine::Warning, PE->getBeginLoc(),
+        "attempted to differentiate unsupported statement, no changes applied");
+    
+    // Safely clone the PredefinedExpr using our fixed StmtClone
+    // This prevents crashes while preserving the expression structure
+    return StmtDiff(Clone(PE));
+  }
+
   StmtDiff ReverseModeVisitor::VisitStmtExpr(const StmtExpr* SE) {
     // StmtExpr (GNU statement expressions) are not differentiable
     // For assert macros and similar constructs, we need to handle them carefully
