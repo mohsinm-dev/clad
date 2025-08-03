@@ -1,4 +1,4 @@
-// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only 2>&1 | FileCheck %s
 
 // Simple test to verify the Ubuntu segfault fix works
 // This should compile without crashing (the main achievement of the fix)
@@ -13,7 +13,7 @@ void test_assert_mock(const char* expr, const char* file, int line, const char* 
   ((expr) ? (void)0 : test_assert_mock(#expr, __FILE__, __LINE__, __extension__ __PRETTY_FUNCTION__))
 
 void simpleTestFunction(double x) {
-    simple_ubuntu_assert(x > 0.0);
+    simple_ubuntu_assert(x > 0.0);  // Previously caused segfaults
     
     // Test predefined expressions that caused issues
     const char* fname = __func__;
@@ -25,3 +25,9 @@ int main() {
     auto grad = clad::gradient(simpleTestFunction);
     return 0;
 }
+
+// Focus on crash prevention
+// CHECK-NOT: Segmentation fault
+// CHECK-NOT: PLEASE submit a bug report
+// CHECK-NOT: Stack dump:
+// CHECK-NOT: fatal error:
