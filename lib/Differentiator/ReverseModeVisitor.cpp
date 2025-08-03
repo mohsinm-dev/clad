@@ -689,6 +689,18 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
     return StmtDiff(Clone(S));
   }
 
+  StmtDiff ReverseModeVisitor::VisitStmtExpr(const StmtExpr* SE) {
+    // StmtExpr (GNU statement expressions) are not differentiable
+    // but we can safely clone them for assert macros and similar constructs
+    diag(
+        DiagnosticsEngine::Warning, SE->getBeginLoc(),
+        "attempted to differentiate unsupported statement expression, cloning without differentiation");
+    
+    // Clone the statement expression safely - this avoids the crash
+    // that was occurring when StmtExpr fell through to VisitStmt
+    return StmtDiff(Clone(SE));
+  }
+
   StmtDiff ReverseModeVisitor::VisitCXXFunctionalCastExpr(
       const clang::CXXFunctionalCastExpr* FCE) {
     StmtDiff castExprDiff = Visit(FCE->getSubExpr(), dfdx());
