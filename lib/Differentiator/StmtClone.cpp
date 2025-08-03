@@ -89,7 +89,7 @@ DEFINE_CREATE_EXPR(IntegerLiteral,
 Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
   // DEBUG: Print to stderr to verify this method is actually being called
   llvm::errs() << "[DEBUG] StmtClone::VisitPredefinedExpr called for: " 
-               << (Node ? Node->getIdentKindName() : "NULL_NODE") << "\n";
+               << (Node ? PredefinedExpr::getIdentKindName(Node->getIdentKind()) : "NULL_NODE") << "\n";
   
   // Add null check for Node itself first
   if (!Node) {
