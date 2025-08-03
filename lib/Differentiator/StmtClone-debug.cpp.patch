@@ -1,0 +1,101 @@
+--- a/lib/Differentiator/StmtClone.cpp
++++ b/lib/Differentiator/StmtClone.cpp
+@@ -562,6 +562,12 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
+     VD->setReferenced();
+     VD->setIsUsed();
+   }
++  
++  // Debug logging for Ubuntu issue #1442
++  if (const char* debug_env = getenv("CLAD_DEBUG_UBUNTU")) {
++    llvm::errs() << "[DEBUG] VisitDeclRefExpr: Processing " << DRE->getNameInfo().getAsString() 
++                 << " at " << DRE->getBeginLoc().printToString(m_Sema.getSourceManager()) << "\n";
++  }
+   QualType QT = DRE->getType();
+   updateType(QT);
+   return true;
+@@ -570,6 +576,16 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
+ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
+   if (auto* E = dyn_cast<Expr>(S)) {
+     QualType QT = E->getType();
++    
++    // Debug logging for Ubuntu issue #1442
++    if (const char* debug_env = getenv("CLAD_DEBUG_UBUNTU")) {
++      llvm::errs() << "[DEBUG] VisitStmt: Processing " << E->getStmtClassName() 
++                   << " QT.isNull()=" << (QT.isNull() ? "true" : "false")
++                   << " at " << E->getBeginLoc().printToString(m_Sema.getSourceManager()) << "\n";
++      if (QT.isNull()) {
++        llvm::errs() << "[WARNING] Null QualType detected in VisitStmt for " << E->getStmtClassName() << "\n";
++      }
++    }
+     updateType(QT);
+   }
+   return true;
+@@ -577,6 +593,15 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
+ 
+ void ReferencesUpdater::updateType(QualType QT) {
+   if (QT.isNull())
++  {
++    // Debug logging for Ubuntu issue #1442
++    if (const char* debug_env = getenv("CLAD_DEBUG_UBUNTU")) {
++      llvm::errs() << "[DEBUG] updateType: Skipping null QualType\n";
++      // Print stack trace to identify call site
++      llvm::errs() << "[DEBUG] Call stack trace:\n";
++      llvm::errs().flush();
++    }
+     return;
++  }
+   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
+     TraverseStmt(varArrType->getSizeExpr());
+ }
+@@ -584,6 +609,15 @@ void ReferencesUpdater::updateType(QualType QT) {
+ QualType StmtClone::CloneType(const clang::QualType T) {
+   if (T.isNull())
++  {
++    // Debug logging for Ubuntu issue #1442
++    if (const char* debug_env = getenv("CLAD_DEBUG_UBUNTU")) {
++      llvm::errs() << "[DEBUG] CloneType: Skipping null QualType\n";
++      // Print stack trace to identify call site
++      llvm::errs() << "[DEBUG] Call stack trace:\n";
++      llvm::errs().flush();
++    }
+     return T;
++  }
+   if (const auto* varArrType =
+           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
+     auto elemType = varArrType->getElementType();
+@@ -594,6 +628,35 @@ QualType StmtClone::CloneType(const clang::QualType T) {
+   return clang::QualType(T.getTypePtr(), T.getQualifiers().getAsOpaqueValue());
+ }
+ 
++// Additional visitor methods for comprehensive debugging
++bool ReferencesUpdater::VisitPredefinedExpr(PredefinedExpr* PE) {
++  if (const char* debug_env = getenv("CLAD_DEBUG_UBUNTU")) {
++    llvm::errs() << "[DEBUG] VisitPredefinedExpr: " << PE->getIdentKindName()
++                 << " QT.isNull()=" << (PE->getType().isNull() ? "true" : "false") << "\n";
++  }
++  
++  QualType QT = PE->getType();
++  if (!QT.isNull()) {
++    updateType(QT);
++  }
++  return RecursiveASTVisitor::VisitPredefinedExpr(PE);
++}
++
++bool ReferencesUpdater::VisitCastExpr(CastExpr* CE) {
++  if (const char* debug_env = getenv("CLAD_DEBUG_UBUNTU")) {
++    llvm::errs() << "[DEBUG] VisitCastExpr: " << CE->getCastKindName()
++                 << " QT.isNull()=" << (CE->getType().isNull() ? "true" : "false") << "\n";
++  }
++  
++  QualType QT = CE->getType();
++  if (!QT.isNull()) {
++    updateType(QT);
++  }
++  return RecursiveASTVisitor::VisitCastExpr(CE);
++}
++
++// Add more visitor methods as needed based on Ubuntu crash analysis
++
+ //---------------------------------------------------------
+   } // end namespace utils
+ } // end namespace clad

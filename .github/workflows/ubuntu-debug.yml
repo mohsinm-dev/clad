@@ -1,0 +1,282 @@
+name: Ubuntu Debug - Issue 1442
+on:
+  push:
+    branches:
+      - ubuntu-debug-1442
+  pull_request:
+    branches:
+      - ubuntu-debug-1442
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ubuntu-debug:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Focus on specific Ubuntu configurations that are likely failing
+          - name: ubu22-gcc10-runtime11-debug
+            os: ubuntu-22.04
+            compiler: gcc-10
+            clang-runtime: '11'
+            debug_mode: true
+            
+          - name: ubu22-gcc11-runtime11-debug
+            os: ubuntu-22.04
+            compiler: gcc-11
+            clang-runtime: '11'
+            debug_mode: true
+            
+          - name: ubu22-clang15-runtime18-debug
+            os: ubuntu-22.04
+            compiler: clang-15
+            clang-runtime: '18'
+            debug_mode: true
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Debugging Environment
+      run: |
+        # Install debugging tools
+        sudo apt-get update
+        sudo apt-get install -y gdb valgrind strace
+        
+        # Enable core dumps
+        ulimit -c unlimited
+        echo "ulimit -c unlimited" >> ~/.bashrc
+        
+        # Setup crash dump collection
+        sudo mkdir -p /var/crash
+        sudo chmod 777 /var/crash
+        echo "/var/crash/core.%e.%p.%t" | sudo tee /proc/sys/kernel/core_pattern
+        
+        echo "=== Debugging Environment Setup Complete ==="
+        gdb --version
+        valgrind --version
+
+    - name: Install dependencies
+      run: |
+        # Install compiler and basic dependencies
+        if [[ "${{ matrix.compiler }}" == gcc-* ]]; then
+          sudo apt-get install -y ${{ matrix.compiler }} ${{ matrix.compiler }}-multilib
+          export CC=$(echo ${{ matrix.compiler }} | sed 's/++-*//')
+          export CXX=${{ matrix.compiler }}
+        elif [[ "${{ matrix.compiler }}" == clang-* ]]; then
+          sudo apt-get install -y ${{ matrix.compiler }}
+          export CC=${{ matrix.compiler }}
+          export CXX=$(echo ${{ matrix.compiler }} | sed 's/clang/clang++/')
+        fi
+        
+        # Install Python and lit
+        python3 -m pip install --upgrade pip
+        python3 -m pip install lit
+        
+        echo "CC=$CC" >> $GITHUB_ENV
+        echo "CXX=$CXX" >> $GITHUB_ENV
+
+    - name: Install LLVM/Clang runtime
+      run: |
+        # Install specific clang runtime version
+        if [[ ${{ matrix.clang-runtime }} == 11 ]]; then
+          sudo apt-get install -y llvm-${{ matrix.clang-runtime }} llvm-${{ matrix.clang-runtime }}-dev \
+            clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
+        else
+          # For newer versions, try to install from LLVM APT repository
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-${{ matrix.clang-runtime }} main"
+          sudo apt-get update
+          sudo apt-get install -y llvm-${{ matrix.clang-runtime }} llvm-${{ matrix.clang-runtime }}-dev \
+            clang-${{ matrix.clang-runtime }} libclang-${{ matrix.clang-runtime }}-dev
+        fi
+        
+        export PATH_TO_LLVM_BUILD="/usr/lib/llvm-${{ matrix.clang-runtime }}"
+        echo "PATH_TO_LLVM_BUILD=$PATH_TO_LLVM_BUILD" >> $GITHUB_ENV
+        
+        # Verify installation
+        ${PATH_TO_LLVM_BUILD}/bin/clang --version
+        ${PATH_TO_LLVM_BUILD}/bin/llvm-config --version
+
+    - name: Configure Clad with Debug Options
+      run: |
+        mkdir obj
+        cd obj
+        
+        # Configure with debug options
+        cmake ../                                             \
+          -DCMAKE_BUILD_TYPE=Debug                           \
+          -DLLVM_DIR=$PATH_TO_LLVM_BUILD                     \
+          -DClang_DIR=$PATH_TO_LLVM_BUILD                    \
+          -DLLVM_EXTERNAL_LIT="`which lit`"                 \
+          -DCMAKE_CXX_FLAGS="-g -O0 -fno-omit-frame-pointer" \
+          -DCMAKE_C_FLAGS="-g -O0 -fno-omit-frame-pointer"   \
+          -DCLAD_ENABLE_DOXYGEN=Off                          \
+          -DCLAD_ENABLE_SPHINX=Off
+
+    - name: Build Clad
+      run: |
+        cd obj
+        make -j2 VERBOSE=1
+
+    - name: Create Ubuntu-Specific Test Cases
+      run: |
+        # Create minimal reproduction test without system dependencies
+        mkdir -p test/Regressions
+        cat > test/Regressions/ubuntu-debug-1442.cpp << 'EOF'
+        // RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
+
+        // Ubuntu-specific debugging test for issue #1442
+        // This test isolates Ubuntu/GCC-specific assert patterns without system dependencies
+
+        #include "clad/Differentiator/Differentiator.h"
+
+        // Mock assert function to avoid linking issues
+        void test_assert_fail(const char* assertion, const char* file, 
+                              unsigned int line, const char* function) {}
+
+        // Ubuntu/GCC-style assert patterns that are known to cause issues
+        #define ubuntu_assert_v1(expr) \
+          (static_cast<bool> (expr) \
+           ? (void)(0) \
+           : test_assert_fail(#expr, __FILE__, __LINE__, __extension__ __PRETTY_FUNCTION__))
+
+        #define ubuntu_assert_v2(expr) \
+          ((expr) ? (void)0 : test_assert_fail(#expr, __FILE__, __LINE__, __func__))
+
+        void calcViscFluxSide(int x, bool flag) {
+            ubuntu_assert_v1(x >= 0);  // Test Ubuntu-specific pattern
+            // expected-warning@+0 {{attempted to differentiate unsupported statement, no changes applied}}
+        }
+
+        void testExtensionExpr(double x) {
+            const char* fname = __extension__ __PRETTY_FUNCTION__;  // Ubuntu-specific
+            // expected-warning@+0 {{attempted to differentiate unsupported statement, no changes applied}}
+        }
+
+        void testBasicAssert(int y) {
+            ubuntu_assert_v2(y > 0);  // Alternative pattern
+            // expected-warning@+0 {{attempted to differentiate unsupported statement, no changes applied}}
+        }
+
+        void testFunction(bool c, double x, int y) {
+            calcViscFluxSide(5, c);
+            testExtensionExpr(x);  
+            testBasicAssert(y);
+        }
+
+        int main() {
+            auto grad = clad::gradient(testFunction);
+            return 0;
+        }
+
+        // CHECK: void testFunction_grad(bool c, double x, int y, bool *_d_c, double *_d_x, int *_d_y) {
+        // CHECK-NEXT: calcViscFluxSide(5, c);
+        // CHECK-NEXT: testExtensionExpr(x);
+        // CHECK-NEXT: testBasicAssert(y);
+        // CHECK-NEXT: }
+        EOF
+
+    - name: Test with Enhanced Debugging and Crash Detection
+      run: |
+        cd obj
+        
+        echo "=== Starting Clad Test with Enhanced Debugging ==="
+        
+        # Set debugging environment variables
+        export CLAD_DEBUG=1
+        export ASAN_OPTIONS=abort_on_error=1:print_stacktrace=1
+        export UBSAN_OPTIONS=print_stacktrace=1
+        
+        # Run tests with various debugging techniques
+        echo "=== Running with GDB to catch segfaults ==="
+        set +e  # Don't exit on failure, we want to capture the crash
+        
+        timeout 300 gdb --batch \
+          --ex "set confirm off" \
+          --ex "set print frame-arguments all" \
+          --ex "run" \
+          --ex "bt full" \
+          --ex "info registers" \
+          --ex "disassemble" \
+          --ex "quit" \
+          --args cmake --build . --target check-clad -- -j1 VERBOSE=1 2>&1 | tee debug_output.log
+        
+        TEST_EXIT_CODE=$?
+        
+        echo "=== Test Exit Code: $TEST_EXIT_CODE ==="
+        
+        if [ $TEST_EXIT_CODE -eq 124 ]; then
+          echo "=== TEST TIMED OUT ==="
+        elif [ $TEST_EXIT_CODE -ne 0 ]; then
+          echo "=== TEST FAILED - Analyzing crash ==="
+          
+          # Look for core dumps
+          echo "=== Searching for core dumps ==="
+          find /var/crash -name "core*" -type f -exec echo "Found core dump: {}" \;
+          find . -name "core*" -type f -exec echo "Found core dump: {}" \;
+          
+          # If core dumps exist, analyze them
+          for corefile in /var/crash/core* ./core*; do
+            if [ -f "$corefile" ]; then
+              echo "=== Analyzing core dump: $corefile ==="
+              gdb --batch --ex "bt full" --ex "info registers" --ex "quit" \
+                $(which clang) "$corefile" 2>&1 | tee -a debug_output.log
+            fi
+          done
+          
+          # Run specific failing test in isolation
+          echo "=== Running Ubuntu-specific test in isolation ==="
+          cd test
+          python3 -m lit -v Regressions/ubuntu-debug-1442.cpp --debug 2>&1 | tee -a ../debug_output.log
+          cd ..
+        else
+          echo "=== TEST PASSED - Ubuntu issue may be resolved ==="
+        fi
+
+    - name: Analyze Debug Output
+      if: always()
+      run: |
+        cd obj
+        
+        echo "=== Debug Output Analysis ==="
+        
+        if [ -f debug_output.log ]; then
+          echo "=== Full Debug Log ==="
+          cat debug_output.log
+          
+          echo ""
+          echo "=== Segfault Analysis ==="
+          grep -A 10 -B 5 "Segmentation fault\|segfault\|SIGSEGV" debug_output.log || echo "No segfault found"
+          
+          echo ""
+          echo "=== Assert-related crashes ==="
+          grep -A 5 -B 5 "__assert\|assert.*fail\|PredefinedExpr" debug_output.log || echo "No assert-related crashes found"
+          
+          echo ""
+          echo "=== QualType null access ==="
+          grep -A 5 -B 5 "QualType\|updateType\|CloneType" debug_output.log || echo "No QualType issues found"
+          
+          echo ""
+          echo "=== Stack trace analysis ==="
+          grep -A 20 "Stack trace\|backtrace\|#0\|#1\|#2" debug_output.log || echo "No stack traces found" 
+        else
+          echo "No debug output log found"
+        fi
+
+    - name: Upload Debug Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ubuntu-debug-${{ matrix.name }}
+        path: |
+          obj/debug_output.log
+          /var/crash/core*
+          obj/core*
+        retention-days: 7
