@@ -2651,8 +2651,10 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
       // completely
-      if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
-        unsupportedOpWarn(BinOp->getOperatorLoc());
+      // Note: Suppressing all warnings here as per comment above and to avoid
+      // noisy warnings from assert macros and similar constructs
+      // if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
+      //   unsupportedOpWarn(BinOp->getOperatorLoc());
 
       return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     }
