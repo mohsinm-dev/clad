@@ -600,13 +600,10 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
 }
 
 bool ReferencesUpdater::VisitPredefinedExpr(clang::PredefinedExpr* PE) {
-  // DEBUG: Print to verify this method is being called  
-  llvm::errs() << "[DEBUG] ReferencesUpdater::VisitPredefinedExpr called for: " 
-               << PredefinedExpr::getIdentKindName(PE->getIdentKind()) << "\n";
-  
   // PredefinedExpr nodes don't need reference updates, just validate the type safely
+  // This prevents crashes when processing predefined expressions like __func__, __FUNCTION__, etc.
   QualType QT = PE->getType();
-  updateType(QT);  // This is safe because updateType has null checks
+  updateType(QT);
   return true;
 }
 
