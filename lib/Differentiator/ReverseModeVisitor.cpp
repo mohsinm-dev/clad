@@ -690,21 +690,14 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
   }
 
   StmtDiff ReverseModeVisitor::VisitPredefinedExpr(const PredefinedExpr* PE) {
-    // DEBUG: Print to stderr to verify this method is actually being called
-    llvm::errs() << "[DEBUG] ReverseModeVisitor::VisitPredefinedExpr called for: " 
-                 << PredefinedExpr::getIdentKindName(PE->getIdentKind()) << "\n";
-    
     // PredefinedExpr (__func__, __FUNCTION__, __PRETTY_FUNCTION__) are not differentiable
     // but are commonly found in assert macros. Handle them safely without crashing.
-    diag(
-        DiagnosticsEngine::Warning, PE->getBeginLoc(),
-        "attempted to differentiate unsupported statement, no changes applied");
+    // Note: We don't emit warnings here because these are commonly used in assert macros
+    // and the warnings would be noisy without adding value.
     
     // Instead of cloning the PredefinedExpr (which can cause LLVM crashes on Ubuntu
     // during code generation), return a safe no-op expression that won't interfere
     // with differentiation but prevents crashes during pullback generation
-    
-    llvm::errs() << "[DEBUG] Returning safe zero literal instead of cloning PredefinedExpr\n";
     
     // Create a simple integer literal 0 as a safe replacement
     // This preserves the expression slot but avoids the problematic PredefinedExpr
