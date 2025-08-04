@@ -164,6 +164,7 @@ namespace utils {
         const std::unordered_map<const clang::VarDecl*, clang::VarDecl*>&
             DeclReplacements);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
+    bool VisitPredefinedExpr(clang::PredefinedExpr* PE);
     bool VisitStmt(clang::Stmt* S);
     /// Used to update the size expression of QT
     /// if QT is VariableArrayType.

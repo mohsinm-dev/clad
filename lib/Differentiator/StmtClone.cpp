@@ -599,6 +599,17 @@ bool ReferencesUpdater::VisitDeclRefExpr(DeclRefExpr* DRE) {
   return true;
 }
 
+bool ReferencesUpdater::VisitPredefinedExpr(clang::PredefinedExpr* PE) {
+  // DEBUG: Print to verify this method is being called  
+  llvm::errs() << "[DEBUG] ReferencesUpdater::VisitPredefinedExpr called for: " 
+               << PredefinedExpr::getIdentKindName(PE->getIdentKind()) << "\n";
+  
+  // PredefinedExpr nodes don't need reference updates, just validate the type safely
+  QualType QT = PE->getType();
+  updateType(QT);  // This is safe because updateType has null checks
+  return true;
+}
+
 bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
   if (auto* E = dyn_cast<Expr>(S)) {
     QualType QT = E->getType();

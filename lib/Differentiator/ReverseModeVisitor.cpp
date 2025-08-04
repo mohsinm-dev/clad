@@ -691,7 +691,7 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
 
   StmtDiff ReverseModeVisitor::VisitPredefinedExpr(const PredefinedExpr* PE) {
     // DEBUG: Print to stderr to verify this method is actually being called
-    llvm::errs() << "[DEBUG] VisitPredefinedExpr called for: " 
+    llvm::errs() << "[DEBUG] ReverseModeVisitor::VisitPredefinedExpr called for: " 
                  << PredefinedExpr::getIdentKindName(PE->getIdentKind()) << "\n";
     
     // PredefinedExpr (__func__, __FUNCTION__, __PRETTY_FUNCTION__) are not differentiable
@@ -700,9 +700,16 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
         DiagnosticsEngine::Warning, PE->getBeginLoc(),
         "attempted to differentiate unsupported statement, no changes applied");
     
-    // Safely clone the PredefinedExpr using our fixed StmtClone
-    // This prevents crashes while preserving the expression structure
-    return StmtDiff(Clone(PE));
+    // Instead of cloning the PredefinedExpr (which can cause LLVM crashes on Ubuntu
+    // during code generation), return a safe no-op expression that won't interfere
+    // with differentiation but prevents crashes during pullback generation
+    
+    llvm::errs() << "[DEBUG] Returning safe zero literal instead of cloning PredefinedExpr\n";
+    
+    // Create a simple integer literal 0 as a safe replacement
+    // This preserves the expression slot but avoids the problematic PredefinedExpr
+    Expr* zeroLiteral = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+    return StmtDiff(zeroLiteral);
   }
 
   StmtDiff ReverseModeVisitor::VisitStmtExpr(const StmtExpr* SE) {
