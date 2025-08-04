@@ -113,6 +113,7 @@ public:
   StmtDiff
   VisitUnaryExprOrTypeTraitExpr(const clang::UnaryExprOrTypeTraitExpr* UE);
   StmtDiff VisitPseudoObjectExpr(const clang::PseudoObjectExpr* POE);
+  StmtDiff VisitPredefinedExpr(const clang::PredefinedExpr* PE);
   StmtDiff VisitSubstNonTypeTemplateParmExpr(
       const clang::SubstNonTypeTemplateParmExpr* NTTP);
   StmtDiff VisitImplicitValueInitExpr(const clang::ImplicitValueInitExpr* IVIE);
