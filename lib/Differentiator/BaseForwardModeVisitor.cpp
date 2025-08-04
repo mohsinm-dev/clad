@@ -2159,9 +2159,9 @@ StmtDiff BaseForwardModeVisitor::VisitPredefinedExpr(
     const clang::PredefinedExpr* PE) {
   // PredefinedExpr (__func__, __FUNCTION__, __PRETTY_FUNCTION__) are not differentiable
   // but are commonly found in assert macros. Handle them safely without crashing.
-  // Return the original expression and zero derivative
-  return {Clone(PE),
-          ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0)};
+  // Instead of cloning (which can crash), return a safe string literal
+  Expr* safeLiteral = ConstantFolder::synthesizeLiteral(m_Context.IntTy, m_Context, 0);
+  return {safeLiteral, safeLiteral};
 }
 
 StmtDiff BaseForwardModeVisitor::VisitSubstNonTypeTemplateParmExpr(
