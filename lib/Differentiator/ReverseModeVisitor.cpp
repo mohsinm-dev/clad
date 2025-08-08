@@ -2651,14 +2651,29 @@ Expr* ReverseModeVisitor::getStdInitListSizeExpr(const Expr* E) {
       // We should not output any warning on visiting boolean conditions
       // FIXME: We should support boolean differentiation or ignore it
       // completely
-      if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp())
-        unsupportedOpWarn(BinOp->getOperatorLoc());
+      
+      // Special handling for assert macros to prevent crashes
+      // Check if we're in an assert context by looking for PredefinedExpr in subtree
+      bool hasAssertContext = false;
+      if (auto* parenExpr = dyn_cast<ParenExpr>(L)) {
+        if (isa<PredefinedExpr>(parenExpr->getSubExpr())) {
+          hasAssertContext = true;
+        }
+      }
+      if (auto* parenExpr = dyn_cast<ParenExpr>(R)) {
+        if (isa<PredefinedExpr>(parenExpr->getSubExpr())) {
+          hasAssertContext = true;
+        }
+      }
+      
+      if (!BinOp->isComparisonOp() && !BinOp->isLogicalOp()) {
+        // Only warn if we're not in an assert context
+        if (!hasAssertContext) {
+          unsupportedOpWarn(BinOp->getOperatorLoc());
+        }
+      }
 
-      // For assert macros and boolean conditions, avoid recursive visitation
-      // which might trigger crashes with PredefinedExpr nodes
-      Expr* LExpr = Clone(L);
-      Expr* RExpr = Clone(R);
-      return BuildOp(opCode, LExpr, RExpr);
+      return BuildOp(opCode, Visit(L).getExpr(), Visit(R).getExpr());
     }
     Expr* op = BuildOp(opCode, Ldiff.getExpr(), Rdiff.getExpr());
 
