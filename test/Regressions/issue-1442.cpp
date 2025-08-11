@@ -20,21 +20,19 @@ extern "C" void __assert_fail(const char*, const char*, int, const char*) __attr
 
 void calcViscFluxSide(int x, bool flag) {
     TEST_ASSERT_V1(x >= 0);
-    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
 void calcViscFluxSide2(int x, bool flag) {
     TEST_ASSERT_V2(x >= 0);
     // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
+    // expected-warning@-2 {{attempted to differentiate unsupported statement, no changes applied}}
+    // expected-warning@-3 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
 void testPredefinedExpr(double x) {
     const char* fname = __func__;
-    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
     const char* fname2 = __FUNCTION__;
-    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
     const char* fname3 = __PRETTY_FUNCTION__;
-    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
 void testFunction(bool c) {
