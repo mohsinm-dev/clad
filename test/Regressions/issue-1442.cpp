@@ -1,61 +1,58 @@
-// RUN: %cladclang %s -I%S/../../include -Xclang -verify -fsyntax-only
+// RUN: %cladclang %s -I%S/../../include -fsyntax-only -Xclang -verify 2>&1 | FileCheck %s
 
-// Single, cross-platform regression for #1442.
-// - Avoids <cassert> and libc/OS variability
-// - Triggers the Clad warning once (assert-like macro)
-// - Exercises PredefinedExpr forms (no extra diagnostics)
-// - Ensures "no crash" across Clang 12–18
-
-#undef NDEBUG
-extern "C" void __assert_fail(const char*, const char*, unsigned, const char*)
-  __attribute__((noreturn));
-
-// Portable source-location helpers
-#ifndef __has_builtin
-#  define __has_builtin(x) 0
-#endif
-
-#if __has_builtin(__builtin_FILE) && __has_builtin(__builtin_LINE)
-#  define MY_FILE() __builtin_FILE()
-#  define MY_LINE() __builtin_LINE()
-#else
-#  define MY_FILE() __FILE__
-#  define MY_LINE() __LINE__
-#endif
-
-#if __has_builtin(__builtin_FUNCTION)
-#  define MY_FUNCTION() __builtin_FUNCTION()
-#else
-#  define MY_FUNCTION() __func__
-#endif
-
-#define MY_ASSERT(expr) \
-  ((expr) ? (void)0 : __assert_fail(#expr, MY_FILE(), MY_LINE(), MY_FUNCTION()))
+// Test for segmentation fault fix when asserts and PredefinedExpr are used
+// This addresses issue #1442
 
 #include "clad/Differentiator/Differentiator.h"
 
-// --- Part 1: trigger the Clad "unsupported statement" warning once ---
+// Simulate different assert implementations without including <cassert>
+// to ensure platform-independent testing across different compilers and OS.
+// This avoids relying on system headers which vary between Ubuntu and macOS.
+extern "C" void __assert_fail(const char*, const char*, int, const char*) __attribute__((noreturn));
+
+// Version 1: Using standard __FILE__, __LINE__, __func__
+#define TEST_ASSERT_V1(expr) \
+    ((expr) ? (void)0 : __assert_fail(#expr, __FILE__, __LINE__, __func__))
+
+// Version 2: Using builtin versions (as used in some glibc implementations)
+#define TEST_ASSERT_V2(expr) \
+    ((expr) ? (void)0 : __assert_fail(#expr, __builtin_FILE(), __builtin_LINE(), __builtin_FUNCTION()))
+
 void calcViscFluxSide(int x, bool flag) {
-  (void)flag;                     // silence unused
-  MY_ASSERT(x >= 0);              // expected-warning {{attempted to differentiate unsupported statement}}
+    TEST_ASSERT_V1(x >= 0);
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
-void a(bool c) {
-  // use c so no extra warnings
-  calcViscFluxSide(c ? 5 : 6, c);
+void calcViscFluxSide2(int x, bool flag) {
+    TEST_ASSERT_V2(x >= 0);
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
-// --- Part 2: exercise PredefinedExpr nodes (no diagnostics expected) ---
-static void uses_predef() {
-  (void)__func__;
-  (void)__FUNCTION__;
-  (void)__PRETTY_FUNCTION__;
+void testPredefinedExpr(double x) {
+    const char* fname = __func__;
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
+    const char* fname2 = __FUNCTION__;
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
+    const char* fname3 = __PRETTY_FUNCTION__;
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
-void predef_wrapper() { uses_predef(); }
-
-// --- Driver: ensure differentiation runs without crashing ---
-void drive() {
-  (void)clad::gradient(a);
-  (void)clad::gradient(predef_wrapper);
+void testFunction(bool c) {
+    calcViscFluxSide(5, c);
+    calcViscFluxSide2(5, c);
 }
+
+void testFunctionWithPredefined(double x) {
+    testPredefinedExpr(x);
+}
+
+int main() {
+    auto grad = clad::gradient(testFunction);
+    auto grad2 = clad::gradient(testFunctionWithPredefined);
+    return 0;
+}
+
+// CHECK: void testFunction_grad(bool c, bool *_d_c) {
+// CHECK-NEXT: calcViscFluxSide(5, c);
+// CHECK-NEXT: calcViscFluxSide2(5, c);
+// CHECK-NEXT: }
