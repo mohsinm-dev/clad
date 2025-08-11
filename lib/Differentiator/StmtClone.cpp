@@ -125,22 +125,30 @@ Stmt* StmtClone::VisitSourceLocExpr(SourceLocExpr* Node) {
   if (!Node)
     return nullptr;
 
-  // For maximum compatibility across all Clang versions, use a simple
-  // and safe fallback that prevents segfaults. SourceLocExpr has significant
-  // API changes between versions that make version-specific handling complex.
-  
   QualType ClonedTy = CloneType(Node->getType());
   if (ClonedTy.isNull()) {
     ClonedTy = Ctx.getConstType(Ctx.CharTy);
   }
 
-  // Create a safe StringLiteral fallback that represents the source location info
-  // This maintains the essential functionality while avoiding version compatibility issues
-  SourceLocation Loc = Node->getLocation();
-  llvm::SmallVector<SourceLocation, 1> Locs{Loc};
-  StringLiteral* Result = StringLiteral::Create(
-      Ctx, "", clad_compat::StringLiteralKind_Ordinary, /*Pascal=*/false,
-      ClonedTy, Locs.data(), Locs.size());
+  // SourceLocExpr constructor signatures changed between Clang versions:
+  // Clang 11-12: 5 params (no QualType in constructor, set type after)
+  // Clang 13+: 6 params (QualType included in constructor)
+  SourceLocExpr* Result;
+  
+#if CLANG_VERSION_MAJOR >= 13
+  // Clang 13+ constructor: (ASTContext, IdentKind, QualType, BeginLoc, EndLoc, Context)
+  Result = new (Ctx) SourceLocExpr(
+      Ctx, Node->getIdentKind(), ClonedTy, 
+      Node->getBeginLoc(), Node->getEndLoc(), Node->getParentContext());
+#else
+  // Clang 11-12 constructor: (ASTContext, IdentKind, BeginLoc, EndLoc, Context)
+  Result = new (Ctx) SourceLocExpr(
+      Ctx, Node->getIdentKind(), 
+      Node->getBeginLoc(), Node->getEndLoc(), Node->getParentContext());
+  // Set type manually for older versions
+  Result->setType(ClonedTy);
+#endif
+
   clad_compat::ExprSetDeps(Result, Node);
   return Result;
 }

@@ -51,6 +51,6 @@ int main() {
 }
 
 // CHECK: void testFunction_grad(bool c, bool *_d_c) {
-// CHECK-NEXT: calcViscFluxSide(5, c);
-// CHECK-NEXT: calcViscFluxSide2(5, c);
-// CHECK-NEXT: }
+// CHECK: calcViscFluxSide(5, c);
+// CHECK: calcViscFluxSide2(5, c);
+// CHECK: }
