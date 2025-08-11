@@ -130,23 +130,22 @@ Stmt* StmtClone::VisitSourceLocExpr(SourceLocExpr* Node) {
     ClonedTy = Ctx.getConstType(Ctx.CharTy);
   }
 
-  // SourceLocExpr constructor signatures changed between Clang versions:
-  // Clang 11-12: 5 params (no QualType in constructor, set type after)
-  // Clang 13+: 6 params (QualType included in constructor)
+  // SourceLocExpr constructor changed between Clang versions:
+  // Clang 14 and earlier: 5 params (no QualType)
+  // Clang 15+: 6 params (includes QualType)
   SourceLocExpr* Result;
   
-#if CLANG_VERSION_MAJOR >= 13
-  // Clang 13+ constructor: (ASTContext, IdentKind, QualType, BeginLoc, EndLoc, Context)
+#if CLANG_VERSION_MAJOR >= 15
+  // Clang 15+ requires QualType in constructor
   Result = new (Ctx) SourceLocExpr(
-      Ctx, Node->getIdentKind(), ClonedTy, 
+      Ctx, Node->getIdentKind(), ClonedTy,
       Node->getBeginLoc(), Node->getEndLoc(), Node->getParentContext());
 #else
-  // Clang 11-12 constructor: (ASTContext, IdentKind, BeginLoc, EndLoc, Context)
+  // Clang 14 and earlier: no QualType in constructor
   Result = new (Ctx) SourceLocExpr(
-      Ctx, Node->getIdentKind(), 
+      Ctx, Node->getIdentKind(),
       Node->getBeginLoc(), Node->getEndLoc(), Node->getParentContext());
-  // Set type manually for older versions
-  Result->setType(ClonedTy);
+  Result->setType(ClonedTy); // Set type manually
 #endif
 
   clad_compat::ExprSetDeps(Result, Node);
