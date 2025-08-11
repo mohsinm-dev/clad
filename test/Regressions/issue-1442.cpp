@@ -4,24 +4,42 @@
 // This addresses issue #1442
 
 #include "clad/Differentiator/Differentiator.h"
-#include <cassert>
+
+// Simulate different assert implementations without including <cassert>
+// to ensure platform-independent testing across different compilers and OS.
+// This avoids relying on system headers which vary between Ubuntu and macOS.
+extern "C" void __assert_fail(const char*, const char*, int, const char*) __attribute__((noreturn));
+
+// Version 1: Using standard __FILE__, __LINE__, __func__
+#define TEST_ASSERT_V1(expr) \
+    ((expr) ? (void)0 : __assert_fail(#expr, __FILE__, __LINE__, __func__))
+
+// Version 2: Using builtin versions (as used in some glibc implementations)
+#define TEST_ASSERT_V2(expr) \
+    ((expr) ? (void)0 : __assert_fail(#expr, __builtin_FILE(), __builtin_LINE(), __builtin_FUNCTION()))
 
 void calcViscFluxSide(int x, bool flag) {
-    assert(x >= 0);
-    // expected-warning@10 {{attempted to differentiate unsupported statement, no changes applied}}
+    TEST_ASSERT_V1(x >= 0);
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
+}
+
+void calcViscFluxSide2(int x, bool flag) {
+    TEST_ASSERT_V2(x >= 0);
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
 void testPredefinedExpr(double x) {
     const char* fname = __func__;
-    // expected-warning@15 {{attempted to differentiate unsupported statement, no changes applied}}
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
     const char* fname2 = __FUNCTION__;
-    // expected-warning@17 {{attempted to differentiate unsupported statement, no changes applied}}
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
     const char* fname3 = __PRETTY_FUNCTION__;
-    // expected-warning@19 {{attempted to differentiate unsupported statement, no changes applied}}
+    // expected-warning@-1 {{attempted to differentiate unsupported statement, no changes applied}}
 }
 
 void testFunction(bool c) {
     calcViscFluxSide(5, c);
+    calcViscFluxSide2(5, c);
 }
 
 void testFunctionWithPredefined(double x) {
@@ -36,4 +54,5 @@ int main() {
 
 // CHECK: void testFunction_grad(bool c, bool *_d_c) {
 // CHECK-NEXT: calcViscFluxSide(5, c);
+// CHECK-NEXT: calcViscFluxSide2(5, c);
 // CHECK-NEXT: }
