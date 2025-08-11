@@ -165,6 +165,7 @@ namespace utils {
             DeclReplacements);
     bool VisitDeclRefExpr(clang::DeclRefExpr* DRE);
     bool VisitPredefinedExpr(clang::PredefinedExpr* PE);
+    bool VisitSourceLocExpr(clang::SourceLocExpr* SLE);
     bool VisitStmt(clang::Stmt* S);
     /// Used to update the size expression of QT
     /// if QT is VariableArrayType.
