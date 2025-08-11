@@ -121,6 +121,25 @@ Stmt* StmtClone::VisitPredefinedExpr(PredefinedExpr* Node) {
   return Result;
 }
 
+Stmt* StmtClone::VisitSourceLocExpr(SourceLocExpr* Node) {
+  if (!Node)
+    return nullptr;
+
+  // Handle potential null type issues in SourceLocExpr across Clang versions
+  QualType Ty = Node->getType();
+  QualType ClonedTy = CloneType(Ty);
+  if (ClonedTy.isNull()) {
+    // Fallback to appropriate type based on what SourceLocExpr represents
+    ClonedTy = Ctx.getConstType(Ctx.CharTy);
+  }
+
+  SourceLocExpr* Result = new (Ctx) SourceLocExpr(
+      Ctx, Node->getIdentKind(), ClonedTy, Node->getBeginLoc(), Node->getEndLoc(),
+      Node->getParentContext());
+  clad_compat::ExprSetDeps(Result, Node);
+  return Result;
+}
+
 DEFINE_CLONE_EXPR(CharacterLiteral,
                   (Node->getValue(), Node->getKind(),
                    CloneType(Node->getType()), Node->getLocation()))
@@ -685,7 +704,7 @@ QualType StmtClone::CloneType(const clang::QualType T) {
   if (T.isNull())
     return T;
 
-  if (const auto* VAT = T->getAs<clang::VariableArrayType>()) {
+  if (const auto* VAT = dyn_cast<VariableArrayType>(T)) {
     auto ElemTy = VAT->getElementType();
     return Ctx.getVariableArrayType(ElemTy, Clone(VAT->getSizeExpr()),
                                     VAT->getSizeModifier(),
