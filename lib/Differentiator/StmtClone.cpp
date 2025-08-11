@@ -676,7 +676,7 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 void ReferencesUpdater::updateType(QualType QT) {
   if (QT.isNull())
     return;
-  if (const auto* VAT = QT->getAs<clang::VariableArrayType>())
+  if (const auto* VAT = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(VAT->getSizeExpr());
 }
 
