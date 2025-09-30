@@ -4,6 +4,7 @@ on:
     branches:
       - master
       - coverity_scan
+      - fix-assert-sourcelocexpr-segfault
   pull_request:
     branches:
       - master
