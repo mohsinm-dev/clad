@@ -510,6 +510,15 @@ Stmt* StmtClone::VisitDeclStmt(DeclStmt* Node) {
   return new (Ctx) DeclStmt(clonedDecls, Node->getBeginLoc(), Node->getEndLoc());
 }
 
+Stmt* StmtClone::VisitSourceLocExpr(SourceLocExpr* Node) {
+  // SourceLocExpr nodes from macro expansions like assert() can have null types
+  // We clone them safely by preserving their builtin identifier kind
+  return SourceLocExpr::Create(Ctx, Node->getIdentKind(), 
+                               CloneType(Node->getType()),
+                               Node->getBeginLoc(), Node->getEndLoc(),
+                               Node->getParentContext());
+}
+
 Stmt* StmtClone::VisitStmt(Stmt*) {
   assert(0 && "clone not fully implemented");
   return 0;
@@ -575,11 +584,18 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 }
 
 void ReferencesUpdater::updateType(QualType QT) {
+  // Guard against null QualTypes that can occur with SourceLocExpr and other
+  // special expressions from macro expansions like assert()
+  if (QT.isNull())
+    return;
   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
 }
 
 QualType StmtClone::CloneType(const clang::QualType T) {
+  // Handle null QualTypes that can occur with SourceLocExpr from macro expansions
+  if (T.isNull())
+    return T;
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
