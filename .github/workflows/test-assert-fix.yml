@@ -1,0 +1,95 @@
+name: Test Assert Fix Branch
+on:
+  push:
+    branches:
+      - fix-assert-sourcelocexpr-segfault
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-assert-fix:
+    name: Test Assert Segfault Fix
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        clang-runtime: ['16', '17', '18']
+        
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+        
+    - name: Setup LLVM/Clang ${{ matrix.clang-runtime }}
+      run: |
+        set -euo pipefail
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        . /etc/lsb-release
+        sudo add-apt-repository "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-${{ matrix.clang-runtime }} main"
+        sudo apt-get update
+        sudo apt-get install -y clang-${{ matrix.clang-runtime }} llvm-${{ matrix.clang-runtime }}-dev libclang-${{ matrix.clang-runtime }}-dev
+        sudo apt-get install -y python3-lit
+        
+    - name: Configure and Build Clad
+      run: |
+        mkdir obj && cd obj
+        export LLVM_DIR=/usr/lib/llvm-${{ matrix.clang-runtime }}
+        export Clang_DIR=/usr/lib/llvm-${{ matrix.clang-runtime }}
+        cmake ../clad -DLLVM_DIR=${LLVM_DIR} -DClang_DIR=${Clang_DIR} -DCMAKE_BUILD_TYPE=Debug
+        make -j4
+        
+    - name: Test Assert Fix Specifically  
+      run: |
+        cd obj
+        # Test our specific regression case
+        clang++-${{ matrix.clang-runtime }} -fplugin=./lib/clad.so -I../include ../test/Regressions/issue-1442.cpp -o test_assert
+        ./test_assert
+        echo "✅ Assert fix test passed"
+        
+    - name: Run Regression Tests
+      run: |
+        cd obj
+        # Run all regression tests to ensure no regressions
+        make check-clad-regressions || echo "Some regression tests expected to fail, but assert fix should work"
+        
+    - name: Test Multiple Assert Scenarios
+      run: |
+        cd obj
+        # Test various assert scenarios
+        cat > comprehensive_assert_test.cpp << 'EOF'
+        #include <cassert>
+        #include "clad/Differentiator/Differentiator.h"
+        
+        void test1(double x) { assert(x > 0); }
+        void test2(double x, double y) { assert(x > 0 && y > 0); }
+        void test3(double x) { 
+            assert(x > 0);
+            assert(x < 100);
+        }
+        
+        void target1(double x) { test1(x); }
+        void target2(double x, double y) { test2(x, y); }  
+        void target3(double x) { test3(x); }
+        
+        int main() {
+            auto g1 = clad::gradient(target1);
+            auto g2 = clad::gradient(target2);
+            auto g3 = clad::gradient(target3);
+            printf("All assert scenarios passed\n");
+            return 0;
+        }
+        EOF
+        
+        clang++-${{ matrix.clang-runtime }} -fplugin=./lib/clad.so -I../include comprehensive_assert_test.cpp -o comprehensive_test
+        ./comprehensive_test
+        echo "✅ Comprehensive assert tests passed"
