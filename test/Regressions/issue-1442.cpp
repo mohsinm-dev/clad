@@ -1,10 +1,10 @@
 // RUN: %cladclang -I%S/../../include %s
 
 #include "clad/Differentiator/Differentiator.h"
-#include <cassert>
 
 void calcViscFluxSide(int, bool) { 
-  assert(0); 
+  // Reproduce the issue using __builtin_FILE() directly  
+  const char* file = __builtin_FILE();
 }
 
 void a(bool c) { 
@@ -13,7 +13,7 @@ void a(bool c) {
 
 int main() {
   // This used to cause a segmentation fault due to null QualType
-  // from SourceLocExpr (__builtin_FILE()) in assert macro expansion
+  // from SourceLocExpr (__builtin_FILE()) in assert macro expansion  
   auto grad_a = clad::gradient(a);
   
   return 0;
