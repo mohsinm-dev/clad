@@ -4,6 +4,7 @@ on:
     branches:
       - master
       - coverity_scan
+      - fix-assert-segfault-issue-1442
   pull_request:
     branches:
       - master
