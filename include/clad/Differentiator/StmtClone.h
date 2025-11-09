@@ -126,7 +126,9 @@ namespace utils {
     DECLARE_CLONE_FN(SubstNonTypeTemplateParmExpr)
     DECLARE_CLONE_FN(CXXScalarValueInitExpr)
     DECLARE_CLONE_FN(ConstantExpr)
+#if CLANG_VERSION_MAJOR >= 14
     DECLARE_CLONE_FN(SourceLocExpr)
+#endif
     DECLARE_CLONE_FN(ValueStmt)
 
     clang::Stmt* VisitStmt(clang::Stmt*);
