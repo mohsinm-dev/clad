@@ -1,9 +1,14 @@
 // RUN: %cladclang -I%S/../../include %s
+// Test for issue #1442: Segmentation fault when assert macros are used in clad
 
+#include <cassert>
 #include "clad/Differentiator/Differentiator.h"
 
 void calcViscFluxSide(int, bool) { 
-  // Reproduce the issue using __builtin_FILE() directly  
+  // Original issue: assert macro expands to __builtin_FILE() etc.
+  assert(true);
+  
+  // Also test direct usage of __builtin_FILE() which caused secondary crash  
   const char* file = __builtin_FILE();
 }
 

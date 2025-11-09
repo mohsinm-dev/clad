@@ -86,6 +86,10 @@ DEFINE_CLONE_EXPR_CO(PredefinedExpr,
                       Node->getIdentKind()
                           CLAD_COMPAT_CLANG17_IsTransparent(Node),
                       Node->getFunctionName()))
+DEFINE_CLONE_EXPR(SourceLocExpr,
+                  (Ctx, Node->getIdentKind(), CloneType(Node->getType()),
+                   Node->getBeginLoc(), Node->getEndLoc(), 
+                   Node->getParentContext()))
 DEFINE_CLONE_EXPR(CharacterLiteral,
                   (Node->getValue(), Node->getKind(),
                    CloneType(Node->getType()), Node->getLocation()))
