@@ -604,11 +604,19 @@ bool ReferencesUpdater::VisitStmt(clang::Stmt* S) {
 }
 
 void ReferencesUpdater::updateType(QualType QT) {
+  // Check if QualType is null before attempting to cast
+  // This can happen with certain AST nodes like SourceLocExpr
+  if (QT.isNull())
+    return;
   if (const auto* varArrType = dyn_cast<VariableArrayType>(QT))
     TraverseStmt(varArrType->getSizeExpr());
 }
 
 QualType StmtClone::CloneType(const clang::QualType T) {
+  // Return null QualType if input is null
+  if (T.isNull())
+    return T;
+    
   if (const auto* varArrType =
           dyn_cast<clang::VariableArrayType>(T.getTypePtr())) {
     auto elemType = varArrType->getElementType();
